@@ -6,6 +6,8 @@
 # it wants to stop the commit.
 #
 
+install_dir="$HOME/.local/bin/"
+
 gitleaksEnabled() {
 #    """Determine if the pre-commit hook for gitleaks is enabled."""
   gl_config=$(git config hooks.gitleaks)
@@ -15,14 +17,30 @@ gitleaksEnabled() {
   return 0
 }
 
+gitleaksInstalled() {
+  gl_install=0
+  if [ "$(gitleaks --version 2>&1 | grep 'not found' | wc -l)" = "0" ]; then
+    gl_install=1
+  elif [ -e "${install_dir}" ]; then
+    if [ -e "${install_dir}gitleaks" ]; then
+      gl_install=2
+    fi
+  else
+    mkdir -p $install_dir
+  fi
+  echo "<gitleaksInstalled>: found(${gl_install})"
+  return $gl_install
+}
+
 gitleaksCheck() {
   gl_res=0
-  cur_ext="tar.gz"
+  cur_ext=""
+  cur_tar_ext="tar.gz"
   gl_url="https://github.com/gitleaks/gitleaks"
   targ_os=$(uname -s | tr '[:upper:]' '[:lower:]')
   targ_arch=$(uname -m | tr '[:upper:]' '[:lower:]')
   len_targ_os=${#targ_os}
-  if [ $len_targ_os -gt 7 ]; then 
+  if [ $len_targ_os -gt 7 ]; then
     if [ "$targ_os#mingw64" != "$targ_os" ]; then
       targ_os="mingw64"
     elif [ "$targ_os#darwin" != "$targ_os" ]; then
@@ -35,7 +53,7 @@ gitleaksCheck() {
   case "$targ_os" in
     "linux" )                       cur_os="linux";;
     "darwin" )                      cur_os="darwin";;
-    "mingw64" | "win" | "windows" ) cur_os="windows"; cur_ext="zip";;
+    "mingw64" | "win" | "windows" ) cur_os="windows"; cur_tar_ext="zip"; cur_ext=".exe";;
     * )                             cur_os="unknown";;
   esac
   case "$targ_arch" in
@@ -48,21 +66,28 @@ gitleaksCheck() {
     echo "Unable to determined system OS or Arch. Commit command will be stopped."
     exit 1
   fi
-  tmp_dir=$(mktemp -d)
-  if [ "$(git remote -v | grep $gl_url | wc -l)" = "0" ]; then
-    git remote add gitleaks $gl_url
+  gitleaksInstalled
+  gl_inst=$?
+  if [ $gl_inst -eq 1 ]; then install_dir=""; fi
+  if [ $gl_inst -eq 0 ]; then
+    # install gitleaks into $install_dir
+    tmp_dir=$(mktemp -d)
+    if [ "$(git remote -v | grep $gl_url | wc -l)" = "0" ]; then
+      git remote add gitleaks $gl_url
+    fi
+    gl_tag=$(git fetch gitleaks --tags && git tag | sort -V | tail -1)
+    gl_file_name="gitleaks_${gl_tag#v}_${cur_os}_${cur_arch}.${cur_tar_ext}"
+    gl_file_url="${gl_url}/releases/download/${gl_tag}/${gl_file_name}"
+    echo "Archive url: ${gl_file_url}"
+    if [ $cur_os = "windows" ]; then
+      curl -k -o "${tmp_dir}/${gl_file_name}" -L $gl_file_url
+      unzip "${tmp_dir}/${gl_file_name}" -d "${tmp_dir}"
+    else
+      curl -k -L $gl_file_url | tar -C $tmp_dir -xz
+    fi
+    cp "${tmp_dir}/gitleaks${cur_ext}" "$install_dir"
   fi
-  gl_tag=$(git fetch gitleaks --tags && git tag | sort -V | tail -1)
-  gl_file_name="gitleaks_${gl_tag#v}_${cur_os}_${cur_arch}.${cur_ext}"
-  gl_file_url="${gl_url}/releases/download/${gl_tag}/${gl_file_name}"
-  if [ $cur_os = "windows" ]; then
-    curl -k -o "${tmp_dir}/${gl_file_name}" -L $gl_file_url
-    unzip "${tmp_dir}/${gl_file_name}" -d "${tmp_dir}"
-    "${tmp_dir}/gitleaks.exe" protect -v --staged --redact
-  else
-    curl -k -L $gl_file_url | tar -C $tmp_dir -xz
-    "${tmp_dir}/gitleaks" protect -v --staged --redact
-  fi
+  "${install_dir}gitleaks${cur_ext}" protect -v --staged --redact
   if [ "$?" != "0" ]; then
     echo "
 Warning: gitleaks has detected sensitive information in your changes.
