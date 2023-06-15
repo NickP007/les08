@@ -72,10 +72,14 @@ gitleaksCheck() {
   if [ $gl_inst -eq 0 ]; then
     # install gitleaks into $install_dir
     tmp_dir=$(mktemp -d)
-    if [ "$(git remote -v | grep $gl_url | wc -l)" = "0" ]; then
-      git remote add gitleaks $gl_url
+    gl_tag=$(curl -k -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | cut -d'"' -f4)
+    if [ "${gl_tag}" = "" ]; then
+      echo "get empty tag string. try to get tag via 'git fetch'"
+      if [ "$(git remote -v | grep $gl_url | wc -l)" = "0" ]; then
+        git remote add gitleaks $gl_url
+      fi
+      gl_tag=$(git fetch gitleaks --tags && git tag | sort -V | tail -1)
     fi
-    gl_tag=$(git fetch gitleaks --tags && git tag | sort -V | tail -1)
     gl_file_name="gitleaks_${gl_tag#v}_${cur_os}_${cur_arch}.${cur_tar_ext}"
     gl_file_url="${gl_url}/releases/download/${gl_tag}/${gl_file_name}"
     echo "Archive url: ${gl_file_url}"

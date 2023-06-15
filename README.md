@@ -4,6 +4,8 @@
 
 Скрипт `pre-commit.sh` виконує перевірку наявності секретів, використовуючи gitleaks (https://github.com/gitleaks/gitleaks)
 
+Для запуску скрипта методом "curl pipe sh" виконайте команду ` curl -sSfL https://raw.githubusercontent.com/NickP007/les08/main/pre-commit.sh| sh - ` в робочому каталозі репозиторію. Для Windows систем може знадобитися додатковий параметр ` -k `
+
 #### Інсталяція
 
 1. Загрузіть файл `pre-commit.sh` на локальний комп'ютер.
