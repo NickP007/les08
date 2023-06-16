@@ -28,7 +28,7 @@ gitleaksInstalled() {
   else
     mkdir -p $install_dir
   fi
-  echo "<gitleaksInstalled>: found(${gl_install})"
+  echo "INFO: <gitleaksInstalled>: found(${gl_install})"
   return $gl_install
 }
 
@@ -49,7 +49,7 @@ gitleaksCheck() {
       targ_os="linux"
     fi
   fi
-  echo "os=$targ_os, arch=$targ_arch"
+  echo "INFO: os=$targ_os, arch=$targ_arch"
   case "$targ_os" in
     "linux" )                       cur_os="linux";;
     "darwin" )                      cur_os="darwin";;
@@ -63,7 +63,7 @@ gitleaksCheck() {
     * )                               cur_arch="unknown";;
   esac
   if [ "$cur_os" = "unknown" -o "$cur_arch" = "unknown" ]; then
-    echo "Unable to determined system OS or Arch. Commit command will be stopped."
+    echo "WARN: Unable to determined system OS or Arch. Commit command will be stopped."
     exit 1
   fi
   gitleaksInstalled
@@ -74,7 +74,7 @@ gitleaksCheck() {
     tmp_dir=$(mktemp -d)
     gl_tag=$(curl -k -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | cut -d'"' -f4)
     if [ "${gl_tag}" = "" ]; then
-      echo "get empty tag string. try to get tag via 'git fetch'"
+      echo "WARN: get empty tag string. try to get tag via 'git fetch'"
       if [ "$(git remote -v | grep $gl_url | wc -l)" = "0" ]; then
         git remote add gitleaks $gl_url
       fi
@@ -82,7 +82,7 @@ gitleaksCheck() {
     fi
     gl_file_name="gitleaks_${gl_tag#v}_${cur_os}_${cur_arch}.${cur_tar_ext}"
     gl_file_url="${gl_url}/releases/download/${gl_tag}/${gl_file_name}"
-    echo "Archive url: ${gl_file_url}"
+    echo "INFO: Archive url: ${gl_file_url}"
     if [ $cur_os = "windows" ]; then
       curl -k -o "${tmp_dir}/${gl_file_name}" -L $gl_file_url
       unzip "${tmp_dir}/${gl_file_name}" -d "${tmp_dir}"
@@ -90,17 +90,17 @@ gitleaksCheck() {
       curl -k -L $gl_file_url | tar -C $tmp_dir -xz
     fi
     cp "${tmp_dir}/gitleaks${cur_ext}" "$install_dir"
+    rm -rf $tmp_dir
   fi
   "${install_dir}gitleaks${cur_ext}" protect -v --staged --redact
   if [ "$?" != "0" ]; then
     echo "
-Warning: gitleaks has detected sensitive information in your changes.
+WARN: gitleaks has detected sensitive information in your changes.
 To disable the gitleaks precommit hook run the following command:
 
     git config hooks.gitleaks disable"
     gl_res=1
   fi
-  rm -rf $tmp_dir
   return $gl_res
 }
 
@@ -110,7 +110,7 @@ if [ $? -eq 1 ]; then
   gitleaksCheck
   if [ $? -eq 1 ]; then exit 1; fi
 else
-  echo "gitleaks precommit disabled
+  echo "INFO: gitleaks precommit disabled
 (enable with 'git config hooks.gitleaks enable')"
 fi
 echo "-= end pre-commit hook =-"
